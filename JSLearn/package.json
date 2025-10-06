@@ -1,0 +1,47 @@
+{
+  "name": "jslearn",
+  "version": "1.0.0",
+  "description": "A comprehensive JavaScript and Node.js learning project with practical examples and exercises",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "basics": "node 01-javascript-basics.js",
+    "nodejs": "node 02-nodejs-core-concepts.js",
+    "http": "node 03-http-servers.js",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "keywords": [
+    "javascript",
+    "nodejs",
+    "learning",
+    "tutorial",
+    "examples",
+    "exercises",
+    "web-development",
+    "http",
+    "api"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/jslearn.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/jslearn/issues"
+  },
+  "homepage": "https://github.com/yourusername/jslearn#readme",
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22",
+    "eslint": "^8.0.0",
+    "prettier": "^2.8.0"
+  },
+  "dependencies": {}
+} 

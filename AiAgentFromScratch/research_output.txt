@@ -1,0 +1,19 @@
+--- Research Output ---
+Timestamp: 2025-07-13 17:20:56
+
+{
+  "topic": "AI Agents: Understanding Intelligent Autonomous Systems",
+  "summary": "AI agents are intelligent software systems designed to operate autonomously, performing tasks and making decisions on behalf of users or other systems. These agents represent a fundamental concept in artificial intelligence, characterized by their ability to perceive their environment, process information, and take actions to achieve specific goals. They can be classified into several main categories:\n\n1. Simple Reflex Agents: These agents act based on current percepts, following predefined rules.\n2. Model-Based Agents: Maintain an internal state to track the world evolution.\n3. Goal-Based Agents: Make decisions to achieve specific objectives.\n4. Utility-Based Agents: Choose actions that maximize a given utility function.\n5. Learning Agents: Can improve their performance through experience.\n\nAI agents are increasingly being deployed across various industries, including:\n- Customer service (chatbots and virtual assistants)\n- Process automation in business\n- Data analysis and decision support\n- Healthcare diagnosis and monitoring\n- Smart home systems and IoT devices\n\nThe technology continues to evolve, with recent developments focusing on improving autonomous decision-making, enhanced learning capabilities, and better interaction with human users. Key characteristics of modern AI agents include adaptability, goal-oriented behavior, and the ability to operate in complex, dynamic environments.",
+  "sources": [
+    "Wikipedia - Intelligent Agent",
+    "Various technical articles on AI agent classifications",
+    "Industry reports on AI agent applications",
+    "Research papers on autonomous systems"
+  ],
+  "tools_used": [
+    "search",
+    "wikipedia",
+    "save_text_to_file"
+  ]
+}
+
