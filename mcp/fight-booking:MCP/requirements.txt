@@ -1,0 +1,7 @@
+mcp>=1.0.0
+fastmcp>=0.1.0
+anyio>=4.0.0
+aiohttp>=3.8.0
+asyncio
+dataclasses
+uuid

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "flight-booking": {
+      "command": "python",
+      "args": ["flight_booking_fastmcp.py"],
+      "cwd": "/Users/krishagrawal/Desktop/mcp/fight-booking:MCP"
+    }
+  }
+}

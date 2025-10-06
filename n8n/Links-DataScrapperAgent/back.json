@@ -1,0 +1,456 @@
+{
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "ae187553-bc2a-481e-97f0-80696b6dfc3f",
+        "name": "Manual Trigger",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          736,
+          -48
+        ]
+      },
+      {
+        "parameters": {
+          "filePath": "/files/input_links.xlsx"
+        },
+        "id": "4381de4a-9c0b-4dab-b7b5-0a93e031e3fd",
+        "name": "Read Binary File",
+        "type": "n8n-nodes-base.readBinaryFile",
+        "typeVersion": 1,
+        "position": [
+          944,
+          -48
+        ]
+      },
+      {
+        "parameters": {
+          "fileFormat": "xlsx",
+          "options": {
+            "headerRow": true
+          }
+        },
+        "id": "d593d63b-f601-4ea8-92a4-e73983ea1636",
+        "name": "Spreadsheet File (Read)",
+        "type": "n8n-nodes-base.spreadsheetFile",
+        "typeVersion": 2,
+        "position": [
+          1136,
+          -48
+        ]
+      },
+      {
+        "parameters": {
+          "functionCode": "function norm(u){\n  const s = String(u || '').trim();\n  // remove query/hash and trailing slashes, keep scheme+host+path\n  const noQ = s.replace(/[?#].*$/, '');\n  const trimmed = noQ.replace(/\\/+$/, '');\n  return trimmed;\n}\n\nreturn items.map((it, idx) => {\n  const j = it.json;\n  const raw = (j.URL ?? '').toString().trim();\n  j.URL = raw;                 // keep original URL\n  j.URL_key = norm(raw).toLowerCase(); // normalized join key\n  j.__row = idx;               // (optional) original index\n  return it;\n});"
+        },
+        "id": "ed0d593c-b5d6-490e-b5f0-27e152c30359",
+        "name": "Normalize URL",
+        "type": "n8n-nodes-base.function",
+        "typeVersion": 1,
+        "position": [
+          1344,
+          -48
+        ]
+      },
+      {
+        "parameters": {
+          "functionCode": "return items.filter(i => i.json.URL && String(i.json.URL).trim().length > 0);"
+        },
+        "id": "d1fcf317-0149-493b-acea-7d0329bddc5c",
+        "name": "Filter rows with URL",
+        "type": "n8n-nodes-base.function",
+        "typeVersion": 1,
+        "position": [
+          1344,
+          192
+        ]
+      },
+      {
+        "parameters": {
+          "url": "={{$json.URL}}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "User-Agent",
+                "value": "Mozilla/5.0 (compatible; n8n-bot)"
+              }
+            ]
+          },
+          "options": {
+            "redirect": {
+              "redirect": {
+                "followRedirects": true
+              }
+            },
+            "response": {
+              "response": {
+                "fullResponse": true,
+                "responseFormat": "text"
+              }
+            },
+            "timeout": 30000
+          }
+        },
+        "id": "d2cd13f9-a350-4f2e-b55a-c1de2f018ca7",
+        "name": "Fetch HTML",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 3,
+        "position": [
+          1536,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "keepOnlySet": true,
+          "values": {
+            "string": [
+              {
+                "name": "URL",
+                "value": "={{ $items('Filter rows with URL')[$itemIndex].json.URL }}"
+              },
+              {
+                "name": "URL_key",
+                "value": "={{ $items('Filter rows with URL')[$itemIndex].json.URL_key }}"
+              },
+              {
+                "name": "html",
+                "value": "={{ $json.data }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "0f1ed73e-4600-4f0d-a0a5-66498c043f35",
+        "name": "Set HTML Field",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 2,
+        "position": [
+          1744,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "dataPropertyName": "html",
+          "extractionValues": {
+            "values": [
+              {
+                "key": "Title",
+                "cssSelector": "title",
+                "returnArray": true
+              },
+              {
+                "key": "h2",
+                "cssSelector": "h2",
+                "returnArray": true
+              },
+              {
+                "key": "p",
+                "cssSelector": "p",
+                "returnArray": true
+              }
+            ]
+          },
+          "options": {
+            "trimValues": true
+          }
+        },
+        "id": "0e3b1d95-81c0-40f1-995c-f3e1c46c5dfa",
+        "name": "HTML Extract (Title/H1/H2)",
+        "type": "n8n-nodes-base.htmlExtract",
+        "typeVersion": 1,
+        "position": [
+          1936,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "keepOnlySet": true,
+          "values": {
+            "string": [
+              {
+                "name": "URL",
+                "value": "={{ $items('Set HTML Field')[$itemIndex].json.URL }}"
+              },
+              {
+                "name": "URL_key",
+                "value": "={{ $items('Set HTML Field')[$itemIndex].json.URL_key }}"
+              },
+              {
+                "name": "Title_new",
+                "value": "={{ Array.isArray($json.Title) ? $json.Title[0] : ($json.Title || '') }}"
+              },
+              {
+                "name": "Headlines_new",
+                "value": "={{ Array.isArray($json.h2) ? $json.h2.filter(Boolean).map(s => s.replace(/\\s+/g,' ').trim()).join(' | ') : ($json.h2 || '') }}"
+              },
+              {
+                "name": "Description_new",
+                "value": "={{ Array.isArray($json.p) ? $json.p.filter(Boolean).map(s => s.replace(/\\s+/g,' ').trim()).join(' | ') : ($json.p || '') }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "9f634389-3151-476e-9df7-99838c53d285",
+        "name": "Build Scraped Row",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 2,
+        "position": [
+          2128,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Input 1: originals from Normalize URL\n// Input 2: scraped updates from Build Scraped Row\nconst originals = $input.all(0).map(i => i.json);\nconst updates   = $input.all(1).map(i => i.json);\n\nconst byKey = new Map(\n  updates.map(u => [String(u.URL_key || '').trim(), u])\n);\n\nconst out = originals.map(o => {\n  const key = String(o.URL_key || '').trim();\n  const u = byKey.get(key);\n  if (u) {\n    // keep URL; overwrite scraped fields when present\n    o.URL         = o.URL || u.URL || '';\n    o.Title       = u.Title_new       || o.Title       || '';\n    o.Headlines   = u.Headlines_new   || o.Headlines   || '';\n    o.Description = u.Description_new || o.Description || '';\n  }\n  return { json: o };\n});\n\nreturn out;"
+        },
+        "id": "85cac104-23f5-45e4-b53a-0a06e09ff7f8",
+        "name": "Join & Overwrite by URL",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2336,
+          -48
+        ]
+      },
+      {
+        "parameters": {
+          "functionCode": "const LIMIT=32000;function split(j,k){const s=(j[k]??'').toString();if(s.length>LIMIT){j[k+'_overflow']=s.slice(LIMIT);j[k]=s.slice(0,LIMIT);}}return items.map(i=>{const j=i.json||{};split(j,'Title');split(j,'Headlines');split(j,'Description');return i;});"
+        },
+        "id": "e1f06049-a608-47b9-a5c5-3823265e0cb5",
+        "name": "Chunk long cells (optional safety)",
+        "type": "n8n-nodes-base.function",
+        "typeVersion": 1,
+        "position": [
+          2544,
+          -48
+        ]
+      },
+      {
+        "parameters": {
+          "keepOnlySet": true,
+          "values": {
+            "string": [
+              {
+                "name": "URL",
+                "value": "={{$json.URL || ''}}"
+              },
+              {
+                "name": "Title",
+                "value": "={{$json.Title || ''}}"
+              },
+              {
+                "name": "Headlines",
+                "value": "={{$json.Headlines || ''}}"
+              },
+              {
+                "name": "Description",
+                "value": "={{$json.Description || ''}}"
+              },
+              {
+                "name": "Description_overflow",
+                "value": "={{$json.Description_overflow || ''}}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "e403871d-11e3-4345-b494-57a7f444447e",
+        "name": "Set (ensure columns & order)",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 2,
+        "position": [
+          2736,
+          -48
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "toFile",
+          "fileFormat": "xlsx",
+          "options": {}
+        },
+        "id": "98ccaac0-8de9-4608-8870-3a1ad935b023",
+        "name": "Spreadsheet → XLSX (binary)",
+        "type": "n8n-nodes-base.spreadsheetFile",
+        "typeVersion": 2,
+        "position": [
+          2944,
+          -48
+        ]
+      },
+      {
+        "parameters": {
+          "fileName": "/files/input_links.xlsx",
+          "options": {}
+        },
+        "id": "1cf14173-8143-48dc-9e5f-a5cdddaeb073",
+        "name": "Write File",
+        "type": "n8n-nodes-base.writeBinaryFile",
+        "typeVersion": 1,
+        "position": [
+          3136,
+          -48
+        ]
+      }
+    ],
+    "connections": {
+      "Manual Trigger": {
+        "main": [
+          [
+            {
+              "node": "Read Binary File",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Read Binary File": {
+        "main": [
+          [
+            {
+              "node": "Spreadsheet File (Read)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Spreadsheet File (Read)": {
+        "main": [
+          [
+            {
+              "node": "Normalize URL",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Normalize URL": {
+        "main": [
+          [
+            {
+              "node": "Join & Overwrite by URL",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Filter rows with URL",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Filter rows with URL": {
+        "main": [
+          [
+            {
+              "node": "Fetch HTML",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch HTML": {
+        "main": [
+          [
+            {
+              "node": "Set HTML Field",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set HTML Field": {
+        "main": [
+          [
+            {
+              "node": "HTML Extract (Title/H1/H2)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTML Extract (Title/H1/H2)": {
+        "main": [
+          [
+            {
+              "node": "Build Scraped Row",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Scraped Row": {
+        "main": [
+          [
+            {
+              "node": "Join & Overwrite by URL",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Join & Overwrite by URL": {
+        "main": [
+          [
+            {
+              "node": "Chunk long cells (optional safety)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Chunk long cells (optional safety)": {
+        "main": [
+          [
+            {
+              "node": "Set (ensure columns & order)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set (ensure columns & order)": {
+        "main": [
+          [
+            {
+              "node": "Spreadsheet → XLSX (binary)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Spreadsheet → XLSX (binary)": {
+        "main": [
+          [
+            {
+              "node": "Write File",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "pinData": {},
+    "meta": {
+      "instanceId": "ab59a17dffd86b52a8446a2e4cac03bfcd030ee2e0a8c965756a0387c8dbb93c"
+    }
+  }
