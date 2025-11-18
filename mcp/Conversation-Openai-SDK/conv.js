@@ -9,7 +9,11 @@ const executeSQL = tool({
         query: z.string().describe('The SQL query to execute'),
     }),
     execute: async ({query}) => {
-        return await executeQuery(query);
+        console.log('query', query);
+        // return await executeQuery(query);
+        return {
+            result: 'Query executed successfully',
+        };
     }
 });
 
@@ -38,12 +42,16 @@ const SQLAgent = new Agent({
     description: 'A SQL Agent that can answer questions about the database',
     tools: [
         executeSQL
-    ]
+    ],
+    model: 'gpt-4o-mini',
 });
 
-async function runSQLAgent(query) {
+async function runSQLAgent(query = '') {
     const result = await run(SQLAgent, query);
     return result;
 }
 
-runSQLAgent('Get all users');
+runSQLAgent('Get all users').then((result) => {
+    // console.log('result', result.history);
+    console.log('result', result.finalOutput);
+});

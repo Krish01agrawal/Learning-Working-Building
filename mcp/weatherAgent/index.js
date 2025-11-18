@@ -16,9 +16,16 @@ const GetWeatherDataByCityNameTool = tool({
         cityName: z.string().describe('The name of the city to get the weather data for'),
     }),
     execute: async ({ cityName }) => {
-        const url = `https://wttr.in/${cityName.toLowerCase()}?format=%C+%t`;
-        const response = await axios.get(url, { responseType: 'text' });
-        return `The weather of ${cityName} is ${response.data}`;
+        // const url = `https://wttr.in/${cityName.toLowerCase()}?format=%C+%t`;
+        // const response = await axios.get(url, { responseType: 'text' });
+        const response = {
+            data: {
+                city: cityName,
+                degree_c: 25,
+                condition: 'Sunny',
+            }
+        };
+        return response.data;
     },
 });
 
@@ -42,11 +49,23 @@ const WeatherAgent = new Agent({
     instructions: 'You are a weather agent that can get weather data for a city by its name',
     tools: [GetWeatherDataByCityNameTool, SendEmailTool],
     response_format: GetWeatherResultSchema,
+    model: 'gpt-4o-mini',
 });
 
 async function runWeatherAgent(query = '') {
     const result = await run(WeatherAgent, query);
-    console.log(`Result:`, result.finalOutput.city, result.finalOutput.degree_c, result.finalOutput.condition );
+    
+    // Get tool output data
+    const toolOutput = result.state?.generatedItems?.find(
+        item => item.type === 'tool_call_output_item'
+    );
+    
+    if (toolOutput?.output) {
+        const weatherData = JSON.parse(toolOutput.output);
+        console.log(`Result:`, weatherData.city, weatherData.degree_c, weatherData.condition);
+    } else {
+        console.log(`Result:`, result.finalOutput);
+    }
 }
 
-runWeatherAgent('Bengaluru');
+runWeatherAgent('What is the weather in Bengaluru?');

@@ -26,6 +26,7 @@ const refundAgent = new Agent({
   name: 'Refund Agent',
   instructions: `You are expert in issuing refunds to the customer`,
   tools: [processRefund],
+  model: 'gpt-4o-mini',
 });
 
 // Sales Agent
@@ -55,6 +56,7 @@ const salesAgent = new Agent({
       toolDescription: 'Handles refund questions and requests.',
     }),
   ],
+  model: 'gpt-4o-mini',
 });
 
 const receptionAgent = new Agent({
@@ -67,6 +69,7 @@ const receptionAgent = new Agent({
     - refundAgent: Expert in handling user queries for existing customers and issue refunds and help them
   `,
   handoffs: [salesAgent, refundAgent],
+  model: 'gpt-4o-mini',
 });
 
 async function main(query = '') {
