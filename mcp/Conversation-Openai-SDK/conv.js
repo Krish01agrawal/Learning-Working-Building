@@ -55,11 +55,10 @@ async function runSQLAgent(query = '') {
     return result;
 }
 
-runSQLAgent('Hey I name is Krish').then((result) => {
-    runSQLAgent('Get all comments with my name').then((res) => {
-        // console.log('result', res.history);
-        console.log('result', res.finalOutput);
-    });
-    // console.log('result', result.history);
+(async () => {
+    const result = await runSQLAgent('Hey my name is Krish');
     console.log('result', result.finalOutput);
-});
+    
+    const res = await runSQLAgent('Get all comments with my name');
+    console.log('result', res.finalOutput);
+})();
