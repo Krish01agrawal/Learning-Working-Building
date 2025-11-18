@@ -11,6 +11,7 @@ const processRefund = tool({
     parameters: z.object({
         customer_id: z.string().describe('The ID of the customer to refund'),
         plan_id: z.string().describe('The ID of the plan to refund'),
+        reason: z.string().describe('The reason for refund'),
     }),
     execute: async ({ customer_id, plan_id }) => {
         await fs.appendFile('refunds.txt', `Customer ID: ${customer_id}, Plan ID: ${plan_id}\n`, 'utf-8');
@@ -61,7 +62,10 @@ const SalesAgent = new Agent({
     instructions: 'You are a sales agent that can sell products',
     tools: [
         fetchAvailablePlans,
-        processRefund
+        refundAgent.asTool({
+            name: 'refund_product',
+            description: 'Refund a product',
+        })
     ],
     model: 'gpt-4o-mini',
     temperature: 0.5,
@@ -81,18 +85,6 @@ async function runSalesAgent(query) {
 
 const result = await runSalesAgent('I want refund for my Plan 2, my customer Id is cust12345');
 console.log(result.finalOutput);
-
-
-
-// async function runRefundAgent(query) {
-//     const result = await run(refundAgent, { input: query });
-//     return result;
-// }
-
-// const refundResult = await runRefundAgent('Process a refund for customer 1 and plan 1');
-// console.log(refundResult.finalOutput);
-
-
 
 
 
