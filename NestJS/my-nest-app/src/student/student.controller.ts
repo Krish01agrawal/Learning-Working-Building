@@ -32,6 +32,11 @@ export class StudentController {
         return this.studentService.patchStudent(id, data);
     }
 
+    @Delete(':id')
+    async deleteStudent(@Param('id') id: string){
+        return this.studentService.deleteStudent(id);
+    }
+
     // @Get()
     // getAllStudents(){
     //     return this.studentService.getAllStudents();

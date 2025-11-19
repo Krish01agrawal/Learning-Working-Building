@@ -48,6 +48,10 @@ export class StudentService {
         return this.studentModel.findByIdAndUpdate(id, data, { new: true }).exec();
     }
 
+    async deleteStudent(id: string): Promise<Student | null>{
+        return this.studentModel.findByIdAndDelete(id).exec();
+    }
+
     // private students = [
     //     {
     //         id: 1,
