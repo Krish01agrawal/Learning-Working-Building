@@ -1,7 +1,20 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Student, StudentDocument } from './student.schema';
+import { Model } from 'mongoose';
 
 @Injectable()
 export class StudentService {
+
+    constructor(
+        @InjectModel(Student.name) private readonly studentModel: Model<StudentDocument>
+    ) {}
+
+    async createStudent(data: Partial<Student>): Promise<Student>{
+        const createdStudent = new this.studentModel(data);
+        return createdStudent.save();
+    }
+
     private students = [
         {
             id: 1,
@@ -34,7 +47,7 @@ export class StudentService {
     }
 
     //Post
-    createStudent(data: {name: string, age: number}){
+    createStudentt(data: {name: string, age: number}){
         const student = {
             id: this.students.length + 1,
             ...data,
