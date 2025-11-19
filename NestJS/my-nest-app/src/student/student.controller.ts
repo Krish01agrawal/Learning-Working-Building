@@ -22,6 +22,11 @@ export class StudentController {
         return this.studentService.getStudentById(id);
     }
 
+    @Put(':id')
+    async updateStudent(@Param('id') id: string, @Body() data: Partial<Student>){
+        return this.studentService.updateStudent(id, data);
+    }
+
     // @Get()
     // getAllStudents(){
     //     return this.studentService.getAllStudents();

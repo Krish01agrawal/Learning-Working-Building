@@ -20,7 +20,15 @@ export class StudentService {
     }
 
     async getStudentById(id: string): Promise<Student | null>{
-        const student = await this.studentModel.findById(id).exec() as unknown as Student;
+        const student = await this.studentModel.findById(id).exec();
+        if(!student){
+            throw new HttpException('Student not found', HttpStatus.NOT_FOUND);
+        }
+        return student;
+    }
+
+    async updateStudent(id: string, data: Partial<Student>): Promise<Student | null>{
+        const student = await this.studentModel.findByIdAndUpdate(id, data, { new: true }).exec();
         if(!student){
             throw new HttpException('Student not found', HttpStatus.NOT_FOUND);
         }
