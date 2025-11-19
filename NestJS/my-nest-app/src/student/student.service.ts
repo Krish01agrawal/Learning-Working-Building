@@ -28,11 +28,24 @@ export class StudentService {
     }
 
     async updateStudent(id: string, data: Partial<Student>): Promise<Student | null>{
-        const student = await this.studentModel.findByIdAndUpdate(id, data, { new: true }).exec();
-        if(!student){
+        // const student = await this.studentModel.findByIdAndUpdate(id, data, { new: true }).exec();
+        // if(!student){
+        //     throw new HttpException('Student not found', HttpStatus.NOT_FOUND);
+        // }
+        // return student;
+        const updatedStudent  = await this.studentModel.findByIdAndUpdate(id, {
+            name: data.name || null,
+            age: data.age || null,
+            email: data.email || null,
+        }, { overwrite: true, new: true }).exec();
+        if(!updatedStudent){
             throw new HttpException('Student not found', HttpStatus.NOT_FOUND);
         }
-        return student;
+        return updatedStudent;
+    }
+
+    async patchStudent(id:string, data: Partial<Student>): Promise<Student | null>{
+        return this.studentModel.findByIdAndUpdate(id, data, { new: true }).exec();
     }
 
     // private students = [
