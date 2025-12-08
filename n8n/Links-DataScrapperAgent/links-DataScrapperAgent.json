@@ -1,0 +1,501 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "ae187553-bc2a-481e-97f0-80696b6dfc3f",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        736,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "filePath": "/files/input_links.xlsx"
+      },
+      "id": "4381de4a-9c0b-4dab-b7b5-0a93e031e3fd",
+      "name": "Read Binary File",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        944,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "fileFormat": "xlsx",
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "d593d63b-f601-4ea8-92a4-e73983ea1636",
+      "name": "Spreadsheet File (Read)",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "function norm(u){\n  const s = String(u || '').trim();\n  // remove query/hash and trailing slashes, keep scheme+host+path\n  const noQ = s.replace(/[?#].*$/, '');\n  const trimmed = noQ.replace(/\\/+$/, '');\n  return trimmed;\n}\n\nreturn items.map((it, idx) => {\n  const j = it.json;\n  const raw = (j.URL ?? '').toString().trim();\n  j.URL = raw;                 // keep original URL\n  j.URL_key = norm(raw).toLowerCase(); // normalized join key\n  j.__row = idx;               // (optional) original index\n  return it;\n});"
+      },
+      "id": "ed0d593c-b5d6-490e-b5f0-27e152c30359",
+      "name": "Normalize URL",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1344,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "return items.filter(i => i.json.URL && String(i.json.URL).trim().length > 0);"
+      },
+      "id": "d1fcf317-0149-493b-acea-7d0329bddc5c",
+      "name": "Filter rows with URL",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1344,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.URL}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; n8n-bot)"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "d2cd13f9-a350-4f2e-b55a-c1de2f018ca7",
+      "name": "Fetch HTML",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1536,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "URL",
+              "value": "={{ $items('Filter rows with URL')[$itemIndex].json.URL }}"
+            },
+            {
+              "name": "URL_key",
+              "value": "={{ $items('Filter rows with URL')[$itemIndex].json.URL_key }}"
+            },
+            {
+              "name": "html",
+              "value": "={{ $json.data }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0f1ed73e-4600-4f0d-a0a5-66498c043f35",
+      "name": "Set HTML Field",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        1744,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "dataPropertyName": "html",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "Title",
+              "cssSelector": "title",
+              "returnArray": true
+            },
+            {
+              "key": "h2",
+              "cssSelector": "h2",
+              "returnArray": true
+            },
+            {
+              "key": "p",
+              "cssSelector": "p",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {
+          "trimValues": true
+        }
+      },
+      "id": "0e3b1d95-81c0-40f1-995c-f3e1c46c5dfa",
+      "name": "HTML Extract (Title/H1/H2)",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1,
+      "position": [
+        1936,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "URL",
+              "value": "={{ $items('Set HTML Field')[$itemIndex].json.URL }}"
+            },
+            {
+              "name": "URL_key",
+              "value": "={{ $items('Set HTML Field')[$itemIndex].json.URL_key }}"
+            },
+            {
+              "name": "Title_new",
+              "value": "={{ Array.isArray($json.Title) ? $json.Title[0] : ($json.Title || '') }}"
+            },
+            {
+              "name": "Headlines_new",
+              "value": "={{\n(() => {\n  const hs = Array.isArray($json.h2) ? $json.h2 : [$json.h2 || \"\"];\n  const cleaned = [...new Set(\n    hs.map(s => String(s).replace(/\\s+/g, \" \").trim())\n  )]\n    .filter(Boolean)\n    .filter(s => !/^(related|read more|you might also|recommended)/i.test(s));\n\n  return cleaned.slice(0, 10).join(\" | \"); // keep first up to 10 h2s\n})()\n}}\n"
+            },
+            {
+              "name": "Description_new",
+              "value": "={{\n(() => {\n  // Grab all <p> texts\n  const paras = Array.isArray($json.p) ? $json.p : [$json.p || \"\"];\n\n  // 1) normalize whitespace\n  let cleaned = paras\n    .map(s => String(s).replace(/\\s+/g, \" \").trim())\n    .filter(Boolean);\n\n  // 2) drop boilerplate / nav / legal / auth prompts\n  const stop = /(sign\\s*(in|up)|share|listen|©|copyright|cookie|privacy|terms?|help|about|status|press|blog|careers|subscribe|telephone|phone|address|newsletter)/i;\n  cleaned = cleaned.filter(s => !stop.test(s));\n\n  // 3) drop very short fragments unless they are the first couple\n  cleaned = cleaned.filter((s, i) => s.length > 40 || i < 2);\n\n  // 4) dedupe near-duplicates\n  const seen = new Set();\n  cleaned = cleaned.filter(s => {\n    const k = s.toLowerCase();\n    if (seen.has(k)) return false;\n    seen.add(k);\n    return true;\n  });\n\n  // 5) keep only first N paragraphs and cap total chars\n  const maxParas = 6;      // <-- tune if you want fewer/more paragraphs\n  const maxChars = 1200;   // <-- tune overall length (e.g., 800–1500)\n\n  let selected = cleaned.slice(0, maxParas);\n  let text = selected.join(\" | \");\n\n  if (text.length > maxChars) {\n    text = text.slice(0, maxChars);\n    const cut = Math.max(text.lastIndexOf(\" | \"), text.lastIndexOf(\". \"));\n    text = (cut > 0 ? text.slice(0, cut) : text).replace(/[,;:.!?\\s]*$/,\"\") + \"…\";\n  }\n\n  return text;\n})()\n}}\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9f634389-3151-476e-9df7-99838c53d285",
+      "name": "Build Scraped Row",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        2128,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input 1: originals from Normalize URL\n// Input 2: scraped updates from Build Scraped Row\nconst originals = $input.all(0).map(i => i.json);\nconst updates   = $input.all(1).map(i => i.json);\n\nconst byKey = new Map(\n  updates.map(u => [String(u.URL_key || '').trim(), u])\n);\n\nconst out = originals.map(o => {\n  const key = String(o.URL_key || '').trim();\n  const u = byKey.get(key);\n  if (u) {\n    // keep URL; overwrite scraped fields when present\n    o.URL         = o.URL || u.URL || '';\n    o.Title       = u.Title_new       || o.Title       || '';\n    o.Headlines   = u.Headlines_new   || o.Headlines   || '';\n    o.Description = u.Description_new || o.Description || '';\n  }\n  return { json: o };\n});\n\nreturn out;"
+      },
+      "id": "85cac104-23f5-45e4-b53a-0a06e09ff7f8",
+      "name": "Join & Overwrite by URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2336,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const LIMIT=32000;function split(j,k){const s=(j[k]??'').toString();if(s.length>LIMIT){j[k+'_overflow']=s.slice(LIMIT);j[k]=s.slice(0,LIMIT);}}return items.map(i=>{const j=i.json||{};split(j,'Title');split(j,'Headlines');split(j,'Description');return i;});"
+      },
+      "id": "e1f06049-a608-47b9-a5c5-3823265e0cb5",
+      "name": "Chunk long cells (optional safety)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2544,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "URL",
+              "value": "={{$json.URL || ''}}"
+            },
+            {
+              "name": "Title",
+              "value": "={{$json.Title || ''}}"
+            },
+            {
+              "name": "Headlines",
+              "value": "={{$json.Headlines || ''}}"
+            },
+            {
+              "name": "Description",
+              "value": "={{$json.Description || ''}}"
+            },
+            {
+              "name": "Description_overflow",
+              "value": "={{$json.Description_overflow || ''}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e403871d-11e3-4345-b494-57a7f444447e",
+      "name": "Set (ensure columns & order)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        2736,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "fileFormat": "xlsx",
+        "options": {}
+      },
+      "id": "98ccaac0-8de9-4608-8870-3a1ad935b023",
+      "name": "Spreadsheet → XLSX (binary)",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [
+        2944,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "fileName": "/files/input_links.xlsx",
+        "options": {}
+      },
+      "id": "1cf14173-8143-48dc-9e5f-a5cdddaeb073",
+      "name": "Write File",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        3136,
+        -48
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Binary File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Binary File": {
+      "main": [
+        [
+          {
+            "node": "Spreadsheet File (Read)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Spreadsheet File (Read)": {
+      "main": [
+        [
+          {
+            "node": "Normalize URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize URL": {
+      "main": [
+        [
+          {
+            "node": "Join & Overwrite by URL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter rows with URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter rows with URL": {
+      "main": [
+        [
+          {
+            "node": "Fetch HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch HTML": {
+      "main": [
+        [
+          {
+            "node": "Set HTML Field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set HTML Field": {
+      "main": [
+        [
+          {
+            "node": "HTML Extract (Title/H1/H2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Extract (Title/H1/H2)": {
+      "main": [
+        [
+          {
+            "node": "Build Scraped Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Scraped Row": {
+      "main": [
+        [
+          {
+            "node": "Join & Overwrite by URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Join & Overwrite by URL": {
+      "main": [
+        [
+          {
+            "node": "Chunk long cells (optional safety)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk long cells (optional safety)": {
+      "main": [
+        [
+          {
+            "node": "Set (ensure columns & order)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set (ensure columns & order)": {
+      "main": [
+        [
+          {
+            "node": "Spreadsheet → XLSX (binary)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Spreadsheet → XLSX (binary)": {
+      "main": [
+        [
+          {
+            "node": "Write File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Spreadsheet File (Read)": [
+      {
+        "URL": "https://robert-mcdermott.medium.com/performance-vs-practicality-a-comparison-of-vllm-and-ollama-104acad250fd",
+        "Title": "Performance vs Practicality: A Comparison of vLLM and Ollama | by Robert McDermott | Medium",
+        "Headlines": "vLLM is designed for high-throughput scenarios, while Ollama emphasizes day-to-day simplicity and good-enough performance for most use cases. | Background | Introduction to vLLM | Ollama vs. vLLM performance comparison | vLLM vs Ollama Comparison | Conclusion | Written by Robert McDermott | Responses (3)",
+        "Description": "Sign up | Sign in | Sign up | Sign in | -- | 3 | Listen | Share | I’m a fan of Ollama because it’s surprisingly user-friendly. It runs on Linux, Windows, and macOS, and its Docker-style CLI (pull, run, list, ps, push, rm) makes it feel familiar. It supports NVIDIA, Apple-Silicon/Metal, and even AMD Radeon GPUs, and offers a library of ready-to-use models curated by both the core team and the community. An OpenAI-compatible REST API endpoint lets any script or framework that allows you to override the base URL integrate with it. Whether you’re tinkering on a laptop or running pipelines on a multi-GPU server, you can have local generative-AI services up in minutes. | I’ve used Ollama for many of my projects that need on-prem LLM inference. Because I access it exclusively through its OpenAI-compatible API, I can switch it out for another backend, vLLM for example, or a commercial model simply by updating the base URL variable to point at proxies like LiteLLM or OpenRouter. | That said, vLLM has been on my radar for its reputation in high-throughput scenarios, and I’ve received suggestions that I give it a try. In this article I’ll install vLLM, run inference, and conduct performance benchmarks comparing it head-to-head against Ollama. | vLLM, like Ollama, lets you run large-language models on your own hardware, crucial when privacy, compliance, or maintaining full control over your data is required. It isn’t as user friently as Ollama, but it can deliver significantly higher throughput. The maintainers call it “a fast and easy-to-use library for LLM inference and serving.” The performance optimization is reportedly due to the following features: | vLLM also exposes an OpenAI-compatible API endpoint, so any script or framework that can override the OpenAI base URL will work with it just as easily as with Ollama. | ⚠️ Note: To use vLLM, you’ll need a system with a GPU; preferably a modern NVIDA GPU, with CUDA support. vLLM doesn’t support running on CPU like Ollama does. ❌ vLLM Also currently doesn’t support Apple Silicon GPUs (Metal/MPS) | Installing vLLM is very simple if you have a modern version of Python on your system. In the following examples, I’ll be using UV to create Python virtual environments, install packages and run vLLM. | The first step is to create a new Python virtual environment for vLLM. In this example we’ll create a new environment named vllm-srv. Execute the following commands: | Now install the vLLM package and all of its dependencies with the following commands: | That’s it! It’s installed and we are ready to download our first model and run it. | Go to HuggingFace and find a model that you want to run. In the example below, I’m going to download and run the “Qwen/Qwen3–14B” model which will require at least 30GB of GPU VRAM to be able to load. If you don’t have that much VRAM, select a smaller model such as Qwen/Qwen3–1.7B which only needs 4GB of VRAM to load and run. | Run the command shown on the first line below, substituting “Qwen/Qwen3–14B” for the model that you chose, such as “Qwen/Qwen3–1.7B” for a system with a small GPU: | It might take a while for the model to download (it puts all models it downloads in your ~/.cache/huggingface/hub/ directory), load the weights and start the server. There was a lot more logs generated during this process than shown above, so removed several lines for brevity. You’ll know it’s ready to use when you see “Application startup complete”. | To verify that it’s working, you can use curl against the OpenAI API endpoint to list the models to ensure that your selected model is listed. Run the following command shown on the first line and observe the output: | We can see that the model that I selected has been downloaded and is ready to be used with vLLM. | Now that vLLM is installed, a model has been downloaded and the vLLM server is up and running with a model, we can run interference against it. Here again we’ll use curl to access the OpenAI compatible endpoint. Execute the command shown in the first multi-line command below, substituting the name of the model you are running: | 💡 Note: the Qwen3 models are “thinking” models that put their internal monologue between “<think></think>” tags that are part of the response. To turn thinking mode off, Qwen3 models support a “/no_think” soft-switch that can be provided as part of the prompt. The thinking mode can be very verbose (lots of tokens slowing down the response) so turning it off is a good idea if you don’t need it. | If you saw a response to your prompt in the ‘content’ field of the json response, then it’s working! | ⚠️ Note: The first time I used vLLM, I tried it with the tiny ‘Qwen/Qwen3–1.7B’ model but was shocked to when I ran nvidia-smi to check the VRAM utilization and discovered that it was using 44GB of the 48GB total VRAM in the NVIDIA A6000 GPU that I was using. At first I thought that I had done something wrong, but after some investigation I discovered that behavior was by design. vLLM will automatically allocate 90% of the VRAM of the GPU(s) that it’s running on to optimize performance. I also discovered that you can use the --gpu-memory-utilization flag when starting the vLLM server to tell it how much VRAM to allocate. For example 0.3 would allocate 30% of the VRAM to run the model. Unless you have other services that need to use the GPU at the same time that vLLM does, it’s best to just let vLLM take over all of the GPU. | If you’d rather interact with vLLM models via a web based chat UI than via curl or Python scripts. Open WebUI is an excellent choice. Execute the following commands to create an new Python virtual environment and install Open WebUI: | That will download the package and all the dependencies it needs to run. After all the packages are installed, you can just start it up and start using it. Run the following command: | ⚠️ Note: The WEBUI_AUTH=False part of the above command sets an environment variable that tells Open WebUI to disable user authentication. By default, Open WebUI is a multi-user web application that requires user accounts and authentication, but we are just setting it up for personal use, so we are disabling the user authentication layer. | After Open WebUI is up and running, open up a new web browser tab and navigate to the following URL: | To use vLLM with Open WebUI, you’ll need to add it as an OpenAI server. In Open WebUI, navigate to “Admin Settings” -> “Settings” -> “Connections”. Enable “OpenAI API” and add a new connection as shown below (http://localhost:8000/v1, with a API key of sk-1234): | Since we didn’t define an API key when startring vLLM, you can use anything for an api key, in this example I just used sk-1234 | ⚠️ Note: Since we have bound the vLLM server to 127.0.0.1 (localhost), it’s not remotely accessible, so setting an API key is optional. If you are going to serve up the vLLM OpenAI API endpoint so remote clients can connect to it, make sure that you’ve set and API key and are protecting the traffic with TLS encryption. | To use your vLLM model via Open WebUI, create a new chat and select your model if it’s not already selected, and chat with it like you would any AI chat app such as ChatGPT: | That’s it, at this point you have vLLM setup and are ready to explore and make use of it for you projects. | vLLM is reportedly highly performance optimized and more suitable for demanding production workloads, serving many concurrent sessions. In this section we are going to conduct some simple benchmarking to compare the multi-GPU, single-node performance with increasing levels of concurrent sessions and measure the throughput and response latency between Ollama and vLLM, using the same hardware and same LLM model. | The system I’m going to be conducting this testing on is a modern server with high-performance components and two professional class GPUs: | I’ve chosen the Qwen3 14B model to use in this testing. vLLM typically uses BF16 (half precision), “safetensors” formatted models, while Ollama typically uses 4 or 8 bit quantized models in GGUF format. To keep this comparison as close to apples-to-apples as possible, I’ll be using the “qwen3:14b-fp16” model, which is a FP16/half-precision version of Qwen3 14B from Ollama’s official library. Both models are 28GB in size (on-disk). | ⚠️ Note: There are subtle differences between FP16 and BF16 in how their bits mask range and precision (FP16 has more precision, while BF16 more range), these differences might influence the content of the responses to some small degree, but it would have no impact on performance, what we are measuring in this section. See bf16-vs-fp16 for more information. | The following command will start vLLM using our selected model, make both GPUs visible to vLLM and tell it to parallelize the workload across both GPUs: | The following command will start Ollama, making both GPUs visible to it, telling it to spread it’s workload across the GPUs and that it can run 32 simultaneous threads. | ⚠️ Note: You can’t have both vLLM and Ollama running at the same time. The above configurations require that they both independently have exclusive access to the GPUs. | ⚠️ Note: Also worth noting that that the value of ‘32’ for number off parallel Ollama threads was found via trial and error; I kept increasing the number until it used most of the available GPU VRAM, without spilling over into the CPU (see below): | To test the performance of these servers under and increasing workload, I’ve created a simple utility that takes leverages the OpenAI API, that both vLLM and Ollama support. The benchmarking utility is available here: https://github.com/robert-mcdermott/openai-llm-benchmark | The script can be easily installed (using uv) with the following commands: | Benchmarking command used with vLLM: | Benchmarking command used with Ollama: | Example output of this utility looks like this (vllm with 128 concurrent requests): | The configuration parameters and benchmarking utility with the parameters provided above, were run against each sever (vLLM then Ollama) multiple times with an increase of concurrency each iteration with the following amounts of concurrency provided via the --concurrency flag: | Concurrency increments: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 768, 1000 | After running the benchmark which each concurrency for both servers and capturing the data, the complete results are shown in the table below: | The following charts show the performance of vLLM compared to Ollama for completed request per second, tokens per second, and latency across all the levels of concurrency: | The following chart shows the performance ratio between vLLM and Ollama. vLLM consistency performed better than Ollama, and reached 3.23x times faster at one point with a concurrency level of 128: | I had expected vLLM to perform better than Ollama, and it consistency did in every metric (throughput and latency). On this system and with the provided configuration, vLLM performed up to 3.23x times faster than Ollama with 128 concurrent requests. Ollama ramped up to ~22 requests per second with 32 concurrent requests and stayed flat at that level across the rest of the tests. Adding more concurrent requests beyond 32 with Ollama only resulted in increased latency. I was actually surprised that Ollama performed as well as it did. I was expecting worse performance, and even possiblely throwing errors. Just to be sure everything was working correctly, I added the--capture-responses feature to my benchmarking utility and ran some of the high concurrency tests again, and examined the responses. All responses were successful and the LLM provided valid responses. So while Ollama is inferior to vLLM in raw performance, it might be “good enough” for many (or most) of your use cases. | When raw performance matters, vLLM wins, but Ollama often wins on everything else. My benchmarks showed vLLM delivering up to 3.2x the requests-per-second of Ollama on identical hardware, with noticeably lower latency at high concurrency. If you’re building a service that must: | Then vLLM’s optimizations, PagedAttention, continuous batching, speculative decoding and tensor/pipeline parallelism are clutch. In those cases you should invest in the extra complexity of vLLM. | For everything short of that, Ollama is hard to beat. It installs in minutes, runs on laptops or workstations, supports CPU fallback, and provides a curated model hub plus on-the-fly model switching. If your typical load is a handful of concurrent users, batch jobs that can wait an extra second, or local exploration during development, Ollama’s “good-enough” performance is exactly that, good enough. | Ollama is the reliable daily driver that gets almost everyone where they need to go; vLLM is the tuned engine you unleash when the freeway opens up and you really need to fly. | After reading the vLLM documentation, I became aware that in addition to multi-GPU support, it’s possible to build a multi-node vLLM cluster using “ray” for horizontal scaling. I may experiment with that in the future. | -- | -- | 3 | Help | Status | About | Careers | Press | Blog | Privacy | Rules | Terms | Text to speech",
+        "Description_overflow": ""
+      },
+      {
+        "URL": "https://javascript.plainenglish.io/6-react-useeffect-secrets-that-professional-teams-use-but-never-document-432609f2ea2a",
+        "Title": "6 React useEffect Secrets That Professional Teams Use (But Never Document) | by Blueprintblog | Jul, 2025 | JavaScript in Plain English",
+        "Headlines": "JavaScript in Plain English | 1. AbortController Pattern for Complete Cleanup (Not Just Fetch) | ❌ Common Approach: Basic Cleanup | ✅ Professional Technique: Unified AbortController | Why This Works: | Advanced Implementation: | Real-World Applications: | Pro Tip: | 2. Intelligent Debounce Pattern Without External Libraries | ❌ Common Approach: Library Dependency | ✅ Professional Technique: Native Debounce with Cleanup | Why This Works: | Advanced Implementation: | Real-World Applications: | Pro Tip: | 3. Race Condition Prevention with Request Versioning | ❌ Common Approach: Basic Async Handling | ✅ Professional Technique: Request Version Tracking | Why This Works: | Advanced Implementation: | Real-World Applications: | Pro Tip: | 4. Conditional Effect Execution with Guard Patterns | ❌ Common Approach: Complex Dependency Arrays | ✅ Professional Technique: Guard Pattern Inside Effects | Why This Works: | Advanced Implementation: | Real-World Applications: | Pro Tip: | 5. Dependency Optimization with Stable References | ❌ Common Approach: Inline Objects and Functions | ✅ Professional Technique: Reference Stability Management | Why This Works: | Advanced Implementation: | Real-World Applications: | Pro Tip: | 6. Error Boundary Integration for Effect Failures | ❌ Common Approach: Try-Catch in Effects | ✅ Professional Technique: Error Boundary Bridge | Why This Works: | Advanced Implementation: | Real-World Applications: | Pro Tip: | Master These Secrets, Transform Your React Applications | Reference Materials | 🙌 About the Author | Published in JavaScript in Plain English | Written by Blueprintblog | Responses (4)",
+        "Description": "Sign up | Sign in | Sign up | Sign in | Follow publication | New JavaScript and Web Development content every day. Follow to join our 3.5M+ monthly readers. | Follow publication | -- | 4 | Listen | Share | You know how to use useEffect. But there’s a massive gap between basic effect management and professional implementation patterns. | Most tutorials teach syntax and basic examples. Professional developers know advanced patterns that prevent race conditions, optimize performance, and eliminate memory leaks. | React documentation covers the basics. Production applications require sophisticated techniques that handle edge cases, complex state synchronization, and real-world async operations. | These patterns are rarely documented. Until now. | Not a member? Read for free with a friend link!If you like the article, be sure to clap and follow me. | The Secret: Professional teams use AbortController for ALL async operations, not just fetch requests. | The AbortController provides a unified cancellation mechanism. When the signal is aborted, all operations check this state before updating component state. This prevents the “Can’t perform a React state update on an unmounted component” warning and ensures complete cleanup. The browser automatically removes event listeners when the signal is aborted. | Create a custom useAbortSignal hook that returns just the signal. This allows child components to respect parent cancellation without prop drilling. | The Secret: Professional teams implement debounced effects using refs and cleanup, not external libraries. | The ref persists the timer ID across renders without causing re-renders itself. The cleanup function ensures timers are cleared when the component unmounts or when a new effect runs. This pattern provides precise control over timing and cancellation without external dependencies. | Use useLayoutEffect to update the callback ref synchronously. This prevents stale closure issues when the effect dependencies change rapidly. | The Secret: Professional teams use request versioning to prevent race conditions, not just cleanup functions. | Request versioning ensures that only the response from the most recent request updates the component state. Even if an earlier request completes after a later one (due to network variability), it won’t overwrite the newer data. Combined with AbortController, this provides complete protection against race conditions. | Combine request versioning with optimistic updates. Store the version with the optimistic data and only revert if a newer request fails. | The Secret: Professional teams use early returns and guard clauses inside effects for complex conditional logic. | Guard patterns separate execution conditions from dependency tracking. Dependencies only include values that, when changed, should potentially trigger the effect. The guards inside the effect determine whether the effect actually executes. This creates more maintainable code and clearer intent. | Log guard failures in development but not in production. Use a feature flag or environment variable to control logging verbosity. | The Secret: Professional teams use refs and memoization strategically to prevent unnecessary effect runs. | Refs provide stable references across renders without triggering re-renders themselves. By comparing actual values (not references) and only updating version numbers when data truly changes, effects run exactly when needed. This pattern is crucial for performance in complex applications. | Use useLayoutEffect for updating refs that are read during render. This ensures the ref is updated before the browser paints, preventing visual inconsistencies. | The Secret: Professional teams integrate error boundaries with effects for graceful failure handling. | The useAsyncError hook leverages React's synchronous rendering to throw errors that error boundaries can catch. By throwing during a state update, the error propagates through React's component tree. This bridges the gap between async operations and React's error boundary system. | Create different error boundaries for different parts of your app. A failure in analytics shouldn’t break the entire UI — isolate non-critical features with their own boundaries. | Implementing these professional useEffect patterns will fundamentally change how you handle side effects in React. Start with the AbortController pattern for comprehensive cleanup, then gradually adopt the others based on your application’s needs. | Within 2–3 sprints, your team will see measurable improvements in application stability, performance, and maintainability. These patterns aren’t just optimizations — they’re the foundation of production-grade React applications. | 🚀 Want to take it even further? | Hey! I’m a Full Stack Developer & Founder of Blueprint, passionate about crafting beautiful web experiences and sharing knowledge with the dev community. | What I’m building:🚀 Open source tools and components | 📚 In-depth tutorials on React,Angular, CSS, Node.js, Next.js & ++ | 🎯 Real-world project breakdowns | Connect & Code:🌐 Main Hub: blueprintblog.tech | 💻 Code: github.com/Genildocs | 💼 Professional: LinkedIn | 📱 Updates: @blue_printblog | 📖 Love this content? Follow here on Medium + subscribe to Blueprint Blog for weekly insights that give you the competitive edge. | ☕ Support the mission: If this article helped you, consider buying me a coffee — it keeps the free content flowing and helps me create better tutorials for everyone! | Every coffee fuels the next breakthrough tutorial 🔥 | -- | -- | 4 | New JavaScript and Web Development content every day. Follow to join our 3.5M+ monthly readers. | 🌐 Building beautiful, performant web experiences — one component at a time. github.com/Genildocs | Founder of https://blueprintblog.tech | Help | Status | About | Careers | Press | Blog | Privacy | Rules | Terms | Text to speech",
+        "Description_overflow": ""
+      },
+      {
+        "URL": "https://www.flipkart.com/big-billion-days-store",
+        "Title": "Big Billion Days Sale Live - BBD Bestsellers Are Selling Fast!",
+        "Headlines": "Best Deals on Mobiles | Best Deals on TVs | Men's Casual Shoes | Laptops | Personal care | Inverter Trolleys | Sofas | Try to Resist These Irresistible Deals and Offers in Big Billion Days Sale",
+        "Description": "The wait is over! The Big Billion Day Sale is LIVE from 23rd Sep, 2025. With irresistible deals, limited-time offers, and the biggest festive discounts of the year, this is your chance to bag everything you’ve been waiting for. Reward yourself with the grand shopping spree you deserve and own these festive exclusives before they are sold out. | Rule the festive buzz with the Tyohar drops and make some space in your wardrobe for this season’s latest arrivals. Stalk our Festive Rush Hours offers and Tick Tock Deals to grab your favourites before they are off the shelves in the blink of an eye. This is your moment to shine and glam up. Why wait for later? You have spent months craving for those trendy festive outfits, planning to surprise your loved ones with the amazing gifts, and thinking of decorating the walls to create joyous memories. Make this season’s sparkle completely yours. Double the reasons to celebrate with our unmissable double discounts on this Big Billion Sale. | The wait for the perfect time ends here. It’s time to bag those items sitting on your wishlist that you have been thinking about for months. Is it the Samsung Galaxy S24 5G that comes with a fast processor, long-lasting battery, and high-resolution camera to make video-calling, binge-watching, and clicking photos a smooth task? Or, is it the beauty and grooming products from top brands like Mamaearth, dot & key, etc., to flaunt a festive-ready look and keep your face nourished all day long? These exclusive deals are slipping away at the best prices. Hit the buy now button to never miss out on such crazy deals on this Big Billion Day sale. | This Big Billion Sale is all about more. Claim the more your celebrations deserve. When you can get more discounts on top of a discount simply by using your credit and debit cards, then why are you still drooling over the wishlist? How about bagging those jaw-dropping PUMA shoes, high-performing water geyser from Havells, and Oppo phones with a 5% cashback offer if you pay with your Flipkart Axis Bank Credit Card? Go through product descriptions and read each term and condition to get a real insight into these unbeatable deals and offers. With Flipkart, every purchase turns special, rewarding, and smarter. Enjoy a transparent, secure, and hassle-free UPI payment with every order. This festive season, invest in happiness and more. | Flipkart Internet Private Limited, | Buildings Alyssa, Begonia & | Clove Embassy Tech Village, | Outer Ring Road, Devarabeesanahalli Village, | Bengaluru, 560103, | Karnataka, India | Flipkart Internet Private Limited, | Buildings Alyssa, Begonia & | Clove Embassy Tech Village, | Outer Ring Road, Devarabeesanahalli Village, | Bengaluru, 560103, | Karnataka, India | CIN : U51109KA2012PTC066107 | Telephone: 044-45614700 / 044-67415800",
+        "Description_overflow": ""
+      },
+      {
+        "URL": "https://www.etmoney.com/mutual-funds/featured/best-mutual-funds/29",
+        "Title": "Best Mutual Funds | Top Funds to Invest in India 2025",
+        "Headlines": "List of Best Mutual Funds in India sorted by Returns | Know About Best Mutual Funds | What are Best Mutual Funds? | How to Select the Top Performing Mutual Funds in India? | Tax Implication on Best Mutual Funds in India | Who Should Invest in Best Mutual Funds",
+        "Description": "My Account | Great! You have sucessfully subscribed for newsletters for investments | Subscribed email: | Mutual funds are one of the most popular investment options for individuals. There are thousands of mutual funds in India to choose from, and finding the best ones isn't always easy. Many investors start by asking friends, browsing forums, or searching online. But the answers they get can be confusing or based only on recent performance. That's why we've put together a carefully curated list of top mutual fund schemes. Before you choose, make sure to look at your risk profile and the time horizon of your goals. | Link copied to clipboard | Added to watchlist | There are various types of mutual funds. We can segregate mutual funds based on their underlying assets such as equity, debt, or gold into different categories, such as equity mutual funds, debt mutual funds, and hybrid funds. These funds have different risk profiles and investment objectives. | So, there is not one mutual fund that is best for everyone. The best mutual fund for you will be the mutual fund/s suitable for your investment objectives, risk tolerance, and investment horizon. | For example, let us assume you are building an investment corpus for your child’s higher education after 15 years. It is this case, as you are investing for the long term, equity mutual funds can be the best option for you. However, there are other sub-categories within equity mutual funds, such as large-cap funds, mid-cap funds, and small-cap funds. Here, you can decide to invest in a large-cap fund or small-cap fund based on your risk-taking capacity. A small-cap fund carries more risk than a large-cap fund as a large-cap fund invests predominately in large companies that are market leaders with strong financial positions. Large companies are better able to tide over business cycle downturns than small-cap companies. | You might also have more than one goal. If your second goal is to buy a sedan in the next three years, then investing in equity funds for this goal might not be the best option. Debt mutual funds that are relatively less volatile than equity funds may help you achieve your goal of buying a sedan. | We all want to know the best mutual funds to invest in. This section will highlight some of the factors that can help you identify the top 10 best mutual funds to invest in today. | Investment Objectives: You should undertake any investment only after a thorough examination of your life goals. Once you've determined your needs, you'll need to compare them to the objectives of a mutual fund scheme to see if investing in them would help you achieve your financial goals. Mutual funds, like individuals, have specific investment objectives, and it is up to the investors to determine whether their goals align with the mutual fund scheme in which they will invest.For example, one of the objectives of equity mutual funds is wealth creation. So, equity mutual funds are best for investors looking at long-term wealth creation to achieve long-term goals like building a retirement corpus. In this case, investing predominately in equity funds would be a better option than investing in debt funds, as equities have the potential to generate higher returns than debt funds. So, if you invest chiefly in debt funds to build a retirement corpus, you won't accumulate the same retirement corpus as you could with equity funds.As a result, to make a meaningful selection, the fund’s investment objective must align with an investor’s goals, and risk tolerance.Equity funds are the best mutual funds to invest in for the long term. Opt for a growth mutual fund option to easily reach your long-term goals, as the fund’s returns will compound over time.In the scheme information document, you will find all the relevant details, such as the asset allocation and objectives. | Calculate the future value of your mutual fund investment with Mutual Fund Calculator. | Fund's History: The fund's history provides a record of the fund's performance over time, including times of rising and corrections in markets. This shows the fund's resilience during volatile market conditions.Recently launched mutual funds and funds that are open for subscription don't have a track record so it becomes difficult to predict their returns and their performance across the different market cycles. The best MF to invest in is a fund with a long track record of delivering consistent returns over different market cycles. It also demonstrates the proof of well-researched investment strategies. | Expense Ratio: The fund house charges fund management fees along with other charges for managing the assets of a fund, which is the expense ratio and is represented as a percentage of the fund’s asset. The mutual fund returns generated minus the expense ratio will be the net return earned by the investor. An investor’s returns will be lower if the expense ratio is high. As a result, an investor should look for a scheme with a lower expense ratio than its peers in the category while choosing a fund. | Fund Manager's Performance: The fund manager is in charge of managing the fund. It's crucial to look at the fund manager's track record.An investor should monitor the fund's performance during times of rise and corrections in the market. They can also look at the performance of the different schemes managed by the fund manager. | Check the consistency of the fund: Top-performing mutual funds in India have a proven track record of outperforming the market over the long term, typically three to five years. These funds would have outperformed their benchmark and peer funds in terms of performance. You must examine the fund’s performance across the previous several business cycles. Examine the fund's performance during market downturns, in particular. Market fluctuations have a lower-than-average impact on the performance of a top-performing fund. However, that past performance does not guarantee future results.Additionally, you can also check the historical NAV of Mutual Funds and the latest NAV of Mutual Funds to understand the past track record of the mutual fund. | Check the financial ratios: You can evaluate financial ratios such as alpha and beta to identify India's top-performing mutual funds.Mutual fund returns and risk are inextricably linked. The increase in the overall value of the capital invested is referred to as a return. Risk is defined as the uncertainty surrounding an investment, and it refers to the possibility of obtaining no or negative returns for a variety of causes. As a result, any investor must evaluate the risk-return potential, and financial ratios have made this risk-return analysis possible.The Sharpe and Alpha ratios provide crucial data. The Sharpe ratio measures the fund's excess return on every unit of risk it has taken. As a result, funds with a higher Sharpe ratio are seen as superior to funds with a lower Sharpe ratio. The additional mutual fund returns earned by the fund manager over the benchmark is called alpha. Funds having a higher Alpha are seen to be superior.Check your favorite fund performance with Mutual Fund Performance Ratios and find the best fund that suits your requirements. | There are two ways to earn income when you invest in mutual funds: capital gains and dividends. Currently, dividends are added to your overall total income, and the amount of tax on the dividend will depend on your current income tax slab. | Capital gains are the profit that you get after redeeming your mutual fund units. The tax on capital gains on India's top performing mutual funds will depend on the type of mutual fund and the investment period. | For taxation, the mutual fund that invests at least 65% of its assets in equity and equity-related instruments are classified as equity funds. And other funds that don't have a minimum allocation of 65% to equities, such as debt funds or gold funds, are considered non-equity funds. | If you redeem your equity mutual fund investments within one year from the investment date, the gains are classified as Short Term Capital Gains (STCG) on equity investments and will be taxed at 15%. | However, if you redeem after holding it for one year, capital gains are considered as Long Term Capital Gains (LTCG), and an amount above Rs. 1 lakh is taxed at 10%.If we consider non-equity funds, i.e., debt funds, STCG are gains you get when you sell your debt fund units before three years. In this case, the mutual fund's gains are added to the total income and taxed as per your current income tax slab. | If you stay invested in non-equity funds for over three years, the gains will be considered as LTCG, and the gains will be taxed at 20% after indexation. For information visit Mutual Fund Taxation. | If you have invested in a hybrid mutual fund, the tax on capital gains will depend on the underlying asset. If 65% of the fund’s portfolio is invested in equities, then gains from the hybrid fund will be taxed like an equity fund. On the other hand, it would be taxed like a debt fund if it has less than 65% allocation to equities. | Mutual funds that give high returns consistently across market cycles are considered the best-performing mutual funds in India as they have shown the potential to earn better returns. | Achievement of financial goals: Investors who want to fulfill their investment goals should invest in top mutual funds as per their needs. Investing in top mutual funds that have delivered better returns than their peers consistently will help investors achieve their goals faster. | People who are looking to invest regularly: Through SIP, you can invest in the top mutual funds regularly i.e., on a monthly, weekly, or quarterly basis. You can invest in the best SIP mutual fund to make your investment goals a reality. You may start investing in mutual funds through SIP with an amount as low as Rs.100 per month in any of the best SIP plans in India. | Better returns than traditional saving options: Traditional saving options give a guaranteed interest rate. However, as it is almost risk-free, the returns from these saving options are also muted. On the other hand, mutual funds cannot guarantee returns. However, it can generate higher returns than traditional saving options, like bank fixed deposits.Moreover, different types of mutual funds have different risk-return profiles. So, if you want to invest in high-return mutual funds that give the best return, you might have to be ready to take more risk. | Expert money management: Fund managers are professionals who manage mutual funds. Their job is to select the best stocks or debt instruments that can help the fund generate high returns and fulfill its objectives. So, individuals looking for expert fund management can invest in these top mutual funds. | Diversification: Depending on the type of fund, best-performing mutual funds invest in a basket of securities that help achieve diversification, irrespective of the investment amount. Diversification mitigates the negative impact of a single (or a few) investment security's poor performances on the total portfolio.It aids investors in achieving consistent returns on investments and smoother portfolio performance. As a result, investors can earn better average returns. | Banayantree Services Limited, Non-Individual SEBI Registered Investment Advisers, RIA No. INA100006898, Validity January 09, 2017 - Perpetual | Registered Address: Express Building, 9-10, Bahadurshah Zafar Marg, New Delhi - 110002 | Corporate Office: Plot No. 391, Udyog Vihar, Phase-III, Gurugram, Haryana, 122016 | Email Id - help@etmoneycare.com Email Id of Principal Officer - po@etmoney.com | SEBI Regional office address: NBCC Complex, Office Tower-1, 8th Floor, Plate B, East Kidwai Nagar, New Delhi - 110023",
+        "Description_overflow": ""
+      },
+      {
+        "URL": "https://blog.superhuman.com/ai-agents-for-workflow-automation/?utm_creative=&utm_source=google&utm_campaign=%5BNB%5D+%5BSearch%5D+DSA+International&utm_term=&utm_medium=ppc&hsa_acc=3060134131&hsa_cam=22883751328&hsa_grp=182370812614&hsa_ad=768488592636&hsa_src=g&hsa_tgt=dsa-19959388920&hsa_kw=&hsa_mt=&hsa_net=adwords&hsa_ver=3&gad_source=1&gad_campaignid=22883751328&gbraid=0AAAAACNrZQKOacdRXWftWZ3LIx1TstYQC&gclid=CjwKCAjw89jGBhB0EiwA2o1OnzB7vIHWmtUtaPmxnAMILBU6z4XFYCNpZv2QmyOqrrX4mgJbCFCeQBoCelYQAvD_BwE",
+        "Title": "9 Best AI agents for workflow automation",
+        "Headlines": "1. Email sorting agent | 2. Smart drafting agent | 3. Follow-up and reminder agent | 4. Meeting scheduling agent | 5. Summarization and insight agent | 6. Data entry and CRM update agent | 7. Analytics and reporting agent | 8. Workflow orchestrator (multi-agent system) | 9. Custom fine-tuned agent (built on your data) | Getting started with AI agents | Best collaborative AI tools to accelerate team decisions in 2025 | The AI adoption roadmap for getting your entire team on board",
+        "Description": "Your inbox hits 200 unread emails before lunch, three urgent deals are buried somewhere in the chaos, and you're drowning in routine tasks when you should be focusing on strategy and growth. | Here's what's interesting though. Most people think they need to get better at managing email. But what if the real solution is to stop managing it yourself? | AI agents for workflow automation handle the repetitive work while you focus on what moves the needle. They learn and get smarter over time, unlike basic rules that break when things change, plus they work 24/7 without needing breaks or vacation, and you can scale them up without hiring more people. | The nine agents covered here can work alone to solve specific challenges or together as a coordinated system that transforms your entire workflow. | An email sorting agent transforms chaos into clarity by organizing every message that hits your inbox. No more morning panic attacks over 47 unread emails. | You grab coffee, open your laptop, and instead of scanning endless subject lines, you see exactly what needs your attention. Three messages from your biggest client sit in your VIP section. That contract you've been waiting for is flagged as urgent. The spam and newsletters are tucked away where they belong. | The agent analyzes each message's content, sender reputation, and your past behavior to assign priority scores, ensuring critical communications surface immediately while routine notifications stay out of your way. | Superhuman's Split Inbox demonstrates this perfectly. Instead of one overwhelming inbox, you get organized sections that separate VIP messages from everything else. Auto Summarize lets you scan email conversations at a glance without reading entire chains. The system learns your patterns, getting smarter about what you consider urgent versus what can wait. | Your day changes completely. You miss fewer VIP messages because they're automatically flagged. Response times improve because urgent emails don't get buried under newsletters. Most importantly, you stop playing email detective every time you open your inbox. | Setting up an email sorting agent takes three steps: | Define your VIP contacts and urgency rules for anyone from your executive team, key clients, or family members. | Connect the agent to your existing systems through APIs so it can access your calendar, CRM, and project management tools for context. | Set metrics like response time improvements or inbox processing speed to track the impact. | Some executives worry about missing important emails from new contacts. Modern sorting agents use conservative filtering. When in doubt, they mark something as important rather than filtering it out. You maintain full control over the rules and can adjust them as your priorities change. | You stare at a blank email, knowing exactly what you want to say but can't find the right words. A smart drafting agent solves this by turning rough ideas into polished emails that sound like you wrote them. | Here's how it works. You type \"follow up on pricing discussion,\" and the agent creates a complete email that matches your tone, includes the right context, and maintains your voice. Superhuman's Write with AI analyzes previous messages you've sent to specific recipients and matches your established tone and voice, learning over time through your natural email writing. | If a drafted response goes out with a mistake, most modern clients now allow quick email unsending before the recipient opens it. | Start with reusable prompts for common emails like \"Schedule meeting with client,\" \"Send project update,\" or \"Request vendor information.\" The agent learns from each interaction and gets better at capturing your style. | These agents have limitations though. They excel at routine emails but struggle with complex situations that need emotional intelligence. They work best for standard business communications where consistency and speed matter most. When you use AI drafting tools, you can respond to more emails in the same time while maintaining quality and supporting personalization. | Half your best opportunities die in silence because someone forgot to follow up. A follow-up and reminder agent fixes this by tracking every conversation that needs a response and nudging you when it's time to reconnect. | The agent scans your email conversations and spots the ones going cold. You send a proposal and don't hear back in three days? Flagged. A client promises to \"circle back next week\" and goes silent? You get a reminder. The agent learns your communication patterns and suggests optimal timing for each follow-up based on the relationship and context. | Superhuman's Auto Reminder showcase this capability perfectly. Schedule emails to send at the perfect moment while Reminders ensure nothing falls through the cracks. Messages stay queued until the agent dispatches them automatically. | The business impact is immediate. Sales teams see stalled deals suddenly move forward because the right follow-up happened at the right time. Project leaders keep initiatives on track because stakeholders get gentle nudges when deliverables are due. Teams report increased productivity because these systems eliminate the cognitive burden of remembering every pending task. | Start simple. Set your follow-up preferences and define default intervals for different conversation types. A proposal might get a three-day follow-up, while a casual networking email waits two weeks. The agent learns from your behavior and suggests increasingly accurate timing. | The most sophisticated agents integrate with your CRM and project management tools, creating seamless workflows where follow-ups trigger automatically based on deal stages or project milestones. This eliminates the mental energy spent wondering \"Did I follow up with Sarah about the contract?\" because the agent handles it for you. | You get an email asking for a meeting, and before you can even check your calendar, replies are flying back and forth. \"How about Tuesday?\" \"I'm in client calls all day Tuesday.\" \"Wednesday morning?\" \"I have a board meeting until 11.\" Three days and twelve emails later, you finally land on a time slot. | Meeting scheduling agents eliminate this productivity drain. They scan multiple calendars at once, spot overlapping availability, and propose optimal meeting times in seconds. Many also generate video links and send calendar invites with all the details, while some advanced tools can book conference rooms. | The agent connects to Google Calendar, Microsoft 365, or other scheduling systems. When someone requests a meeting, it analyzes everyone's schedules, considers time zones, factors in travel time between locations, and accounts for meeting preferences like avoiding back-to-back calls. | Tools like Calendly automate this entire process. Share your scheduling link, and prospects can book directly into your available slots without the email back-and-forth. For teams, Acuity Scheduling handles complex multi-person scheduling across different time zones. | For executives juggling 20+ meetings per week, the time savings add up fast. If each meeting typically requires 10 minutes of scheduling coordination, that's over three hours weekly just for calendar management. | You'll need to set clear permissions and preferences upfront. The agent needs access to your calendar data, default meeting lengths, preferred time slots, and booking rules. You might specify no meetings before 9 AM or block focus time from 2-4 PM daily. | The real victory comes from inbox decluttering. Those endless scheduling email conversations disappear completely. Instead of drowning in \"What about Thursday?\" messages, your inbox stays focused on work decisions. | Your inbox contains a 47-message email conversation about a client proposal that started three weeks ago. Reading through everything would take 20 minutes you don't have. A summarization agent handles this in seconds, delivering the key decisions, action items, and outstanding questions you need to know. | These agents analyze lengthy email conversations and documents, then extract the most critical information into digestible summaries. Think of them as your personal research assistant who never gets tired of reading through complex conversations and always knows what matters most. | Superhuman’s Auto Summarize excels at email summarization, automatically generating action items and key takeaways from emails. For document summarization, tools like Notion AI can digest lengthy reports and extract the essential points you need for decision-making. | Customize these summaries for different purposes. Executive snapshots focus on decisions and budget implications. Technical deep dives preserve important specifications and requirements. Action lists extract next steps and deadlines. The format adapts to what you need in the moment. | Instead of getting lost in long CC and BCC email chains, the summarization agent delivers a concise overview of what matters. | This requires some upfront work. Train the agent on your company's terminology and priorities. Configure integration points with your email system and internal databases properly. The agent learns your preferences over time, getting better at identifying what information you consider most important. | The main limitation involves nuance and context. These agents excel at extracting facts and decisions but sometimes miss subtle implications or emotional undertones that might be crucial for sensitive situations. They work best for routine information processing, with human oversight for complex or high-stakes communications. | Your sales team just finished a client call, and now someone needs to manually log every detail into Salesforce. Contact information, project requirements, next steps, budget discussions. This happens dozens of times per week, eating up hours that could be spent selling. | Data entry and CRM update agents solve this by automatically extracting key information from your email conversations and populating your CRM systems. No manual work required. These agents scan through emails to identify contact details, project specifications, meeting outcomes, and deal stages, then push this data directly into platforms like Salesforce, HubSpot, or Pipedrive. | The agent analyzes email content using natural language processing to identify specific data types like phone numbers, company names, project timelines, and budget figures. It validates this information against existing CRM records to prevent duplicates and keeps data consistent across your entire sales pipeline. | Zapier connects your email to CRM platforms, automatically creating leads when prospects email you. Clay takes this further by enriching contact data and updating CRM records with company information, social profiles, and other relevant details pulled from public sources. | This automation delivers three key benefits: | Your IT team will need to establish secure API connections between email systems and CRM platforms while ensuring compliance with data protection regulations. Pay attention to personally identifiable information handling, audit trails, and role-based access controls. | You know that feeling when you're drowning in emails but have no idea if you're getting better at managing them? An analytics and reporting agent turns your communication chaos into clear, actionable data that shows exactly where you're winning and where you're still bleeding time. | Think of it as your email performance coach. This agent pulls data from everywhere like read receipts, calendar events, CRM updates, and your email habits, then creates dashboards that matter. You'll see metrics like: | These agents track the things you can't easily measure yourself: | Without this visibility, you're flying blind. | Mixpanel tracks user behavior across your email workflows, showing which automation saves the most time. For email-specific analytics, tools like EmailAnalytics provide detailed insights into response times, email volume patterns, and productivity metrics across your team. | Start by defining three key performance indicators that matter to your role. Maybe it's average response time, emails processed per hour, or time spent in your inbox daily. Set up data access permissions so the agent can pull from your email client, calendar, and any integrated systems. Choose your reporting frequency like daily snapshots for quick wins, weekly summaries for trends, monthly deep dives for strategic planning. | Privacy matters here. Make sure your analytics agent anonymizes sensitive information and follows your organization's data governance policies. The real power comes from continuous improvement. Your analytics agent shows you which automation investments pay off and which ones need adjustment, turning email management from guesswork into science. | Think of a workflow orchestrator as the conductor of an AI symphony. Instead of relying on a single AI agent to handle everything, you deploy multiple specialized agents that work together seamlessly. One agent handles email triage, another drafts replies, and a third schedules follow-ups. The magic happens when they coordinate these tasks automatically. | Here's how it works in practice. Your email sorting agent identifies a high-priority message from a key client asking about project timelines. It immediately flags this message and passes the context to your smart drafting agent, which crafts a response using your writing style and pulls relevant project data from your CRM. Meanwhile, your scheduling agent checks your calendar and proposes three meeting slots. All of this happens before you even see the original email. | The setup has four connected parts. Perception agents like Microsoft Power Automate watch your email, calendar, and business systems. Decision agents like Zapier look at this information and figure out what to do next. Action agents like IFTTT handle tasks like sending emails or updating databases. Learning agents like Datadog track what works and make the system better over time. | Multi-agent systems represent the next step beyond single-purpose automation. They create compound productivity benefits because each agent makes the others more effective. Your email processing doesn't just get faster, it becomes predictive and proactive. | Start simple when building this. Connect two agents first rather than trying to build everything at once. Link your email sorting agent to your CRM update agent. Once that runs smoothly, add drafting capabilities. | The key is choosing agents that naturally work well together. Your Superhuman inbox becomes the central hub where these coordinated agents operate, turning email management from a reactive chore into an automated advantage that runs while you focus on strategic work. | Your AI agent knows your company's specific processes, your industry terminology, and how your team communicates internally. Custom fine-tuned agents learn from your proprietary data like internal wikis, past email conversations, and company documentation. | Building one takes four steps: | Collect your dataset from internal communications, knowledge bases, and relevant documents. | Fine-tune the AI so it learns your organization's unique language patterns and business logic. | Set up proper permissions and access controls. | Let the agent adapt continuously as it processes more of your company's data. | OpenAI's fine-tuning capabilities let you train GPT models on your specific data, creating agents that understand your industry terminology and communication style. For larger enterprises, platforms like Hugging Face provide more control over the training process and model deployment. | Security matters more here than anywhere else. You're feeding sensitive company information into an AI system, so proper data handling becomes non-negotiable. Encrypt everything in transit and at rest. Set up detailed audit trails. Make sure your setup meets industry compliance requirements from day one. | Start small with a pilot project. Create a sandbox environment where you can test the agent's performance without risking production systems. Organizations see the biggest success when they begin with limited scope and expand gradually. | Work closely with your IT team to build a 30-day minimum viable product. This gives you enough time to see real results while keeping the project manageable. Focus on one specific workflow initially, like automatically categorizing support tickets using your company's historical data. | The competitive advantage is clear. While your competitors use generic AI tools, your custom agent understands your business inside and out. It knows your product names, your customer segments, and your internal processes. Businesses deploying specialized AI agents report higher accuracy rates and better adoption compared to generic solutions. | These AI agents work best when you start small and build up. Pick one or two that solve your biggest problems first, then expand from there. | Whether you're setting up a single agent or building a complete multi-agent system, the key is choosing tools that fit your workflow. Start with the problems that eat up most of your time, then let the agents handle the routine work while you focus on what really matters. | You're in! 💜 | We'll send you regular dispatches from Superhuman — with exclusive content and productivity best practice.",
+        "Description_overflow": ""
+      },
+      {
+        "URL": "https://cloud.google.com/generative-ai-studio",
+        "Title": "Vertex AI Studio | Google Cloud",
+        "Headlines": "1. Email sorting agent | 2. Smart drafting agent | 3. Follow-up and reminder agent | 4. Meeting scheduling agent | 5. Summarization and insight agent | 6. Data entry and CRM update agent | 7. Analytics and reporting agent | 8. Workflow orchestrator (multi-agent system) | 9. Custom fine-tuned agent (built on your data) | Getting started with AI agents | Best collaborative AI tools to accelerate team decisions in 2025 | The AI adoption roadmap for getting your entire team on board",
+        "Description": "Your inbox hits 200 unread emails before lunch, three urgent deals are buried somewhere in the chaos, and you're drowning in routine tasks when you should be focusing on strategy and growth. | Here's what's interesting though. Most people think they need to get better at managing email. But what if the real solution is to stop managing it yourself? | AI agents for workflow automation handle the repetitive work while you focus on what moves the needle. They learn and get smarter over time, unlike basic rules that break when things change, plus they work 24/7 without needing breaks or vacation, and you can scale them up without hiring more people. | The nine agents covered here can work alone to solve specific challenges or together as a coordinated system that transforms your entire workflow. | An email sorting agent transforms chaos into clarity by organizing every message that hits your inbox. No more morning panic attacks over 47 unread emails. | You grab coffee, open your laptop, and instead of scanning endless subject lines, you see exactly what needs your attention. Three messages from your biggest client sit in your VIP section. That contract you've been waiting for is flagged as urgent. The spam and newsletters are tucked away where they belong. | The agent analyzes each message's content, sender reputation, and your past behavior to assign priority scores, ensuring critical communications surface immediately while routine notifications stay out of your way. | Superhuman's Split Inbox demonstrates this perfectly. Instead of one overwhelming inbox, you get organized sections that separate VIP messages from everything else. Auto Summarize lets you scan email conversations at a glance without reading entire chains. The system learns your patterns, getting smarter about what you consider urgent versus what can wait. | Your day changes completely. You miss fewer VIP messages because they're automatically flagged. Response times improve because urgent emails don't get buried under newsletters. Most importantly, you stop playing email detective every time you open your inbox. | Setting up an email sorting agent takes three steps: | Define your VIP contacts and urgency rules for anyone from your executive team, key clients, or family members. | Connect the agent to your existing systems through APIs so it can access your calendar, CRM, and project management tools for context. | Set metrics like response time improvements or inbox processing speed to track the impact. | Some executives worry about missing important emails from new contacts. Modern sorting agents use conservative filtering. When in doubt, they mark something as important rather than filtering it out. You maintain full control over the rules and can adjust them as your priorities change. | You stare at a blank email, knowing exactly what you want to say but can't find the right words. A smart drafting agent solves this by turning rough ideas into polished emails that sound like you wrote them. | Here's how it works. You type \"follow up on pricing discussion,\" and the agent creates a complete email that matches your tone, includes the right context, and maintains your voice. Superhuman's Write with AI analyzes previous messages you've sent to specific recipients and matches your established tone and voice, learning over time through your natural email writing. | If a drafted response goes out with a mistake, most modern clients now allow quick email unsending before the recipient opens it. | Start with reusable prompts for common emails like \"Schedule meeting with client,\" \"Send project update,\" or \"Request vendor information.\" The agent learns from each interaction and gets better at capturing your style. | These agents have limitations though. They excel at routine emails but struggle with complex situations that need emotional intelligence. They work best for standard business communications where consistency and speed matter most. When you use AI drafting tools, you can respond to more emails in the same time while maintaining quality and supporting personalization. | Half your best opportunities die in silence because someone forgot to follow up. A follow-up and reminder agent fixes this by tracking every conversation that needs a response and nudging you when it's time to reconnect. | The agent scans your email conversations and spots the ones going cold. You send a proposal and don't hear back in three days? Flagged. A client promises to \"circle back next week\" and goes silent? You get a reminder. The agent learns your communication patterns and suggests optimal timing for each follow-up based on the relationship and context. | Superhuman's Auto Reminder showcase this capability perfectly. Schedule emails to send at the perfect moment while Reminders ensure nothing falls through the cracks. Messages stay queued until the agent dispatches them automatically. | The business impact is immediate. Sales teams see stalled deals suddenly move forward because the right follow-up happened at the right time. Project leaders keep initiatives on track because stakeholders get gentle nudges when deliverables are due. Teams report increased productivity because these systems eliminate the cognitive burden of remembering every pending task. | Start simple. Set your follow-up preferences and define default intervals for different conversation types. A proposal might get a three-day follow-up, while a casual networking email waits two weeks. The agent learns from your behavior and suggests increasingly accurate timing. | The most sophisticated agents integrate with your CRM and project management tools, creating seamless workflows where follow-ups trigger automatically based on deal stages or project milestones. This eliminates the mental energy spent wondering \"Did I follow up with Sarah about the contract?\" because the agent handles it for you. | You get an email asking for a meeting, and before you can even check your calendar, replies are flying back and forth. \"How about Tuesday?\" \"I'm in client calls all day Tuesday.\" \"Wednesday morning?\" \"I have a board meeting until 11.\" Three days and twelve emails later, you finally land on a time slot. | Meeting scheduling agents eliminate this productivity drain. They scan multiple calendars at once, spot overlapping availability, and propose optimal meeting times in seconds. Many also generate video links and send calendar invites with all the details, while some advanced tools can book conference rooms. | The agent connects to Google Calendar, Microsoft 365, or other scheduling systems. When someone requests a meeting, it analyzes everyone's schedules, considers time zones, factors in travel time between locations, and accounts for meeting preferences like avoiding back-to-back calls. | Tools like Calendly automate this entire process. Share your scheduling link, and prospects can book directly into your available slots without the email back-and-forth. For teams, Acuity Scheduling handles complex multi-person scheduling across different time zones. | For executives juggling 20+ meetings per week, the time savings add up fast. If each meeting typically requires 10 minutes of scheduling coordination, that's over three hours weekly just for calendar management. | You'll need to set clear permissions and preferences upfront. The agent needs access to your calendar data, default meeting lengths, preferred time slots, and booking rules. You might specify no meetings before 9 AM or block focus time from 2-4 PM daily. | The real victory comes from inbox decluttering. Those endless scheduling email conversations disappear completely. Instead of drowning in \"What about Thursday?\" messages, your inbox stays focused on work decisions. | Your inbox contains a 47-message email conversation about a client proposal that started three weeks ago. Reading through everything would take 20 minutes you don't have. A summarization agent handles this in seconds, delivering the key decisions, action items, and outstanding questions you need to know. | These agents analyze lengthy email conversations and documents, then extract the most critical information into digestible summaries. Think of them as your personal research assistant who never gets tired of reading through complex conversations and always knows what matters most. | Superhuman’s Auto Summarize excels at email summarization, automatically generating action items and key takeaways from emails. For document summarization, tools like Notion AI can digest lengthy reports and extract the essential points you need for decision-making. | Customize these summaries for different purposes. Executive snapshots focus on decisions and budget implications. Technical deep dives preserve important specifications and requirements. Action lists extract next steps and deadlines. The format adapts to what you need in the moment. | Instead of getting lost in long CC and BCC email chains, the summarization agent delivers a concise overview of what matters. | This requires some upfront work. Train the agent on your company's terminology and priorities. Configure integration points with your email system and internal databases properly. The agent learns your preferences over time, getting better at identifying what information you consider most important. | The main limitation involves nuance and context. These agents excel at extracting facts and decisions but sometimes miss subtle implications or emotional undertones that might be crucial for sensitive situations. They work best for routine information processing, with human oversight for complex or high-stakes communications. | Your sales team just finished a client call, and now someone needs to manually log every detail into Salesforce. Contact information, project requirements, next steps, budget discussions. This happens dozens of times per week, eating up hours that could be spent selling. | Data entry and CRM update agents solve this by automatically extracting key information from your email conversations and populating your CRM systems. No manual work required. These agents scan through emails to identify contact details, project specifications, meeting outcomes, and deal stages, then push this data directly into platforms like Salesforce, HubSpot, or Pipedrive. | The agent analyzes email content using natural language processing to identify specific data types like phone numbers, company names, project timelines, and budget figures. It validates this information against existing CRM records to prevent duplicates and keeps data consistent across your entire sales pipeline. | Zapier connects your email to CRM platforms, automatically creating leads when prospects email you. Clay takes this further by enriching contact data and updating CRM records with company information, social profiles, and other relevant details pulled from public sources. | This automation delivers three key benefits: | Your IT team will need to establish secure API connections between email systems and CRM platforms while ensuring compliance with data protection regulations. Pay attention to personally identifiable information handling, audit trails, and role-based access controls. | You know that feeling when you're drowning in emails but have no idea if you're getting better at managing them? An analytics and reporting agent turns your communication chaos into clear, actionable data that shows exactly where you're winning and where you're still bleeding time. | Think of it as your email performance coach. This agent pulls data from everywhere like read receipts, calendar events, CRM updates, and your email habits, then creates dashboards that matter. You'll see metrics like: | These agents track the things you can't easily measure yourself: | Without this visibility, you're flying blind. | Mixpanel tracks user behavior across your email workflows, showing which automation saves the most time. For email-specific analytics, tools like EmailAnalytics provide detailed insights into response times, email volume patterns, and productivity metrics across your team. | Start by defining three key performance indicators that matter to your role. Maybe it's average response time, emails processed per hour, or time spent in your inbox daily. Set up data access permissions so the agent can pull from your email client, calendar, and any integrated systems. Choose your reporting frequency like daily snapshots for quick wins, weekly summaries for trends, monthly deep dives for strategic planning. | Privacy matters here. Make sure your analytics agent anonymizes sensitive information and follows your organization's data governance policies. The real power comes from continuous improvement. Your analytics agent shows you which automation investments pay off and which ones need adjustment, turning email management from guesswork into science. | Think of a workflow orchestrator as the conductor of an AI symphony. Instead of relying on a single AI agent to handle everything, you deploy multiple specialized agents that work together seamlessly. One agent handles email triage, another drafts replies, and a third schedules follow-ups. The magic happens when they coordinate these tasks automatically. | Here's how it works in practice. Your email sorting agent identifies a high-priority message from a key client asking about project timelines. It immediately flags this message and passes the context to your smart drafting agent, which crafts a response using your writing style and pulls relevant project data from your CRM. Meanwhile, your scheduling agent checks your calendar and proposes three meeting slots. All of this happens before you even see the original email. | The setup has four connected parts. Perception agents like Microsoft Power Automate watch your email, calendar, and business systems. Decision agents like Zapier look at this information and figure out what to do next. Action agents like IFTTT handle tasks like sending emails or updating databases. Learning agents like Datadog track what works and make the system better over time. | Multi-agent systems represent the next step beyond single-purpose automation. They create compound productivity benefits because each agent makes the others more effective. Your email processing doesn't just get faster, it becomes predictive and proactive. | Start simple when building this. Connect two agents first rather than trying to build everything at once. Link your email sorting agent to your CRM update agent. Once that runs smoothly, add drafting capabilities. | The key is choosing agents that naturally work well together. Your Superhuman inbox becomes the central hub where these coordinated agents operate, turning email management from a reactive chore into an automated advantage that runs while you focus on strategic work. | Your AI agent knows your company's specific processes, your industry terminology, and how your team communicates internally. Custom fine-tuned agents learn from your proprietary data like internal wikis, past email conversations, and company documentation. | Building one takes four steps: | Collect your dataset from internal communications, knowledge bases, and relevant documents. | Fine-tune the AI so it learns your organization's unique language patterns and business logic. | Set up proper permissions and access controls. | Let the agent adapt continuously as it processes more of your company's data. | OpenAI's fine-tuning capabilities let you train GPT models on your specific data, creating agents that understand your industry terminology and communication style. For larger enterprises, platforms like Hugging Face provide more control over the training process and model deployment. | Security matters more here than anywhere else. You're feeding sensitive company information into an AI system, so proper data handling becomes non-negotiable. Encrypt everything in transit and at rest. Set up detailed audit trails. Make sure your setup meets industry compliance requirements from day one. | Start small with a pilot project. Create a sandbox environment where you can test the agent's performance without risking production systems. Organizations see the biggest success when they begin with limited scope and expand gradually. | Work closely with your IT team to build a 30-day minimum viable product. This gives you enough time to see real results while keeping the project manageable. Focus on one specific workflow initially, like automatically categorizing support tickets using your company's historical data. | The competitive advantage is clear. While your competitors use generic AI tools, your custom agent understands your business inside and out. It knows your product names, your customer segments, and your internal processes. Businesses deploying specialized AI agents report higher accuracy rates and better adoption compared to generic solutions. | These AI agents work best when you start small and build up. Pick one or two that solve your biggest problems first, then expand from there. | Whether you're setting up a single agent or building a complete multi-agent system, the key is choosing tools that fit your workflow. Start with the problems that eat up most of your time, then let the agents handle the routine work while you focus on what really matters. | You're in! 💜 | We'll send you regular dispatches from Superhuman — with exclusive content and productivity best practice.",
+        "Description_overflow": ""
+      }
+    ]
+  },
+  "meta": {
+    "instanceId": "ab59a17dffd86b52a8446a2e4cac03bfcd030ee2e0a8c965756a0387c8dbb93c"
+  }
+}
